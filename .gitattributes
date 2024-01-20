@@ -1,2 +1,218 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+import pygame
+import sys
+import random
+
+pygame.init()
+
+shooting_sound = pygame.mixer.Sound("55.mp3")
+
+screen_info = pygame.display.Info()
+screen_width, screen_height = screen_info.current_w, screen_info.current_h
+
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption("Дарбанов Бекбо")
+
+background_image_gif = pygame.image.load("26.gif")
+background_image_gif = pygame.transform.scale(background_image_gif, (screen_width, screen_height))
+
+white = (255, 255, 255)
+red = (255, 0, 0)
+blue = (0, 0, 255)
+
+player_width = 99
+player_height = 100
+player_x = (screen_width - player_width) // 2
+player_y = screen_height - player_height - 10
+player_speed = 10
+
+player_image = pygame.image.load("2.png")
+player_image = pygame.transform.scale(player_image, (player_width, player_height))
+
+enemy_image = pygame.image.load("787.png")
+enemy_image = pygame.transform.scale(enemy_image, (90, 90))
+
+bullet_width = 5
+bullet_height = 20
+bullet_color = red
+bullet_speed = 7
+bullets = []
+
+class Enemy:
+    def __init__(self, x, y, speed):
+        self.x = x
+        self.y = y
+        self.width = 90
+        self.height = 90
+        self.speed = speed
+
+enemies = []
+
+score = 0
+font = pygame.font.Font(None, 36)
+
+background_offset_y = 0
+background_speed = 2
+
+game_over = False
+victory = False  # Флаг для отслеживания победы
+bullets_to_release = 0
+
+level = 1
+enemies_speed = 3
+enemies_increase_speed = 1
+required_score_per_level = 20
+
+def draw_player(x, y):
+    screen.blit(player_image, (x, y))
+
+def draw_bullets(bullets):
+    for bullet in bullets:
+        pygame.draw.rect(screen, bullet_color, bullet)
+
+def draw_enemies(enemies):
+    for enemy in enemies:
+        screen.blit(enemy_image, (enemy.x, enemy.y))
+
+def draw_score(score):
+    score_text = font.render("Score: " + str(score), True, red)
+    screen.blit(score_text, (10, 10))
+
+def draw_level(level):
+    level_text = font.render("Level: " + str(level), True, white)
+    screen.blit(level_text, (screen_width - 120, 10))
+
+def check_collision(enemies, player_x, player_y, player_width, player_height):
+    for enemy in enemies:
+        if (
+            player_x < enemy.x + enemy.width
+            and player_x + player_width > enemy.x
+            and player_y < enemy.y + enemy.height
+            and player_y + player_height > enemy.y
+        ):
+            return True
+    return False
+
+def check_bullet_collision(bullets, enemies):
+    global score, game_over, bullets_to_release, level, enemies_speed, required_score_per_level
+    bullets_to_remove = []
+
+    for bullet in bullets:
+        for enemy in enemies:
+            if (
+                bullet.x < enemy.x + enemy.width
+                and bullet.x + bullet.width > enemy.x
+                and bullet.y < enemy.y + enemy.height
+                and bullet.y + bullet.height > enemy.y
+            ):
+                bullets_to_remove.append(bullet)
+                enemies.remove(enemy)
+                score += 1
+
+                if score % 5 == 0:
+                    bullets_to_release = 2
+
+    for bullet in bullets_to_remove:
+        bullets.remove(bullet)
+
+    if score >= required_score_per_level:
+        level += 1
+        enemies_speed += enemies_increase_speed
+        required_score_per_level += 20
+
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            pygame.mixer.Sound.play(shooting_sound)
+
+            bullet_x = player_x + (player_width - bullet_width) // 2
+            bullet_y = player_y
+            bullets.append(pygame.Rect(bullet_x, bullet_y, bullet_width, bullet_height))
+
+            if bullets_to_release > 0:
+                bullet_x_left = player_x
+                bullet_x_right = player_x + player_width - bullet_width
+                bullets.append(pygame.Rect(bullet_x_left, bullet_y, bullet_width, bullet_height))
+                bullets.append(pygame.Rect(bullet_x_right, bullet_y, bullet_width, bullet_height))
+                bullets_to_release -= 1
+
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_a]:
+        player_x -= player_speed
+    if keys[pygame.K_d]:
+        player_x += player_speed
+    if keys[pygame.K_w]:
+        player_y -= player_speed
+    if keys[pygame.K_s]:
+        player_y += player_speed
+
+    player_x %= screen_width
+    player_y %= screen_height
+
+    for bullet in bullets:
+        bullet.y -= bullet_speed
+
+    for enemy in enemies:
+        enemy.y += enemy.speed
+        if random.choice([True, False]):
+            enemy.x += enemy.speed
+        else:
+            enemy.x -= enemy.speed
+
+    if pygame.time.get_ticks() % 28 == 0:
+        new_enemy_speed = enemies_speed + random.randint(1, 3)
+        new_enemy = Enemy(random.randint(0, screen_width - 90), 0, new_enemy_speed)
+        enemies.append(new_enemy)
+
+    if check_collision(enemies, player_x, player_y, player_width, player_height):
+        pygame.quit()
+        sys.exit()
+
+    check_bullet_collision(bullets, enemies)
+
+    background_offset_y += background_speed
+    if background_offset_y > screen_height:
+        background_offset_y = 0
+
+    screen.blit(background_image_gif, (0, background_offset_y - screen_height))
+    screen.blit(background_image_gif, (0, background_offset_y))
+
+    draw_player(player_x, player_y)
+    draw_bullets(bullets)
+    draw_enemies(enemies)
+    draw_score(score)
+    draw_level(level)
+
+    if level > 3:
+        victory_text = font.render("Поздравляем! Вы победили!", True, blue)
+        continue_text = font.render("Нажмите пробел для завершения", True, blue)
+        screen.blit(victory_text, (screen_width // 2 - 150, screen_height // 2 - 50))
+        screen.blit(continue_text, (screen_width // 2 - 200, screen_height // 2 + 50))
+        victory = True
+
+        if keys[pygame.K_SPACE]:
+            pygame.quit()
+            sys.exit()
+
+    if game_over and not victory:
+        defeat_text = font.render("Поздравляем! Вы проиграли!", True, blue)
+        continue_text = font.render("Нажмите пробел для продолжения", True, blue)
+        screen.blit(defeat_text, (screen_width // 2 - 150, screen_height // 2 - 50))
+        screen.blit(continue_text, (screen_width // 2 - 200, screen_height // 2 + 50))
+
+        if keys[pygame.K_SPACE]:
+            game_over = False
+            victory = False
+            score = 0
+            enemies = []
+            bullets = []
+            level = 1
+            enemies_speed = 3
+            required_score_per_level = 20
+
+    pygame.display.flip()
+    pygame.time.Clock().tick(60)
+ 
